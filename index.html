@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>易白板数学画板 | 交互式几何与函数绘图工具</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入Math.js用于数学计算 -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjs@11.7.0/lib/browser/math.min.js"></script>
+    
+    <!-- 配置Tailwind自定义颜色和字体 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6', // 蓝色作为主色调，代表专业和精确
+                        secondary: '#10B981', // 绿色作为辅助色，用于确认和成功状态
+                        accent: '#F59E0B', // 橙色作为强调色，用于突出重要元素
+                        dark: '#1E293B', // 深色用于文本和背景
+                        light: '#F8FAFC'  // 浅色用于背景和卡片
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <!-- 自定义工具类 -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .tool-btn {
+                @apply w-10 h-10 flex items-center justify-center rounded-md transition-all duration-200 hover:bg-primary/10 hover:text-primary active:bg-primary/20;
+            }
+            .tool-btn.active {
+                @apply bg-primary/20 text-primary border-l-4 border-primary;
+            }
+            .panel-section {
+                @apply p-4 border-b border-gray-200;
+            }
+            .control-input {
+                @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all;
+            }
+            .btn-disabled {
+                @apply opacity-50 cursor-not-allowed hover:bg-transparent;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-dark overflow-hidden h-screen flex flex-col">
+    <!-- 顶部导航栏 -->
+    <header class="bg-white shadow-sm border-b border-gray-200 px-4 py-2 flex items-center justify-between z-10">
+        <div class="flex items-center space-x-2">
+            <i class="fa fa-calculator text-primary text-2xl"></i>
+            <h1 class="text-xl font-bold">易白板数学画板</h1>
+        </div>
+        
+        <div class="flex items-center space-x-1">
+            <button id="new-btn" class="px-3 py-1.5 text-sm flex items-center hover:bg-gray-100 rounded-md transition-colors">
+                <i class="fa fa-file-o mr-1"></i> 新建
+            </button>
+            <button id="save-btn" class="px-3 py-1.5 text-sm flex items-center hover:bg-gray-100 rounded-md transition-colors">
+                <i class="fa fa-save mr-1"></i> 保存
+            </button>
+            <button id="clear-btn" class="px-3 py-1.5 text-sm flex items-center hover:bg-gray-100 rounded-md transition-colors">
+                <i class="fa fa-trash-o mr-1"></i> 清除
+            </button>
+            <div class="h-6 border-r border-gray-300 mx-1"></div>
+            <button id="undo-btn" class="px-3 py-1.5 text-sm flex items-center hover:bg-gray-100 rounded-md transition-colors btn-disabled" disabled>
+                <i class="fa fa-undo mr-1"></i> 撤销
+            </button>
+            <button id="redo-btn" class="px-3 py-1.5 text-sm flex items-center hover:bg-gray-100 rounded-md transition-colors btn-disabled" disabled>
+                <i class="fa fa-repeat mr-1"></i> 重做
+            </button>
+        </div>
+    </header>
+    
+    <!-- 主要内容区域 -->
+    <main class="flex flex-1 overflow-hidden">
+        <!-- 左侧工具栏 -->
+        <aside class="bg-white border-r border-gray-200 w-12 flex flex-col items-center py-3 space-y-1">
+            <button id="select-tool" class="tool-btn active" title="选择工具">
+                <i class="fa fa-mouse-pointer"></i>
+            </button>
+            <button id="point-tool" class="tool-btn" title="点工具">
+                <i class="fa fa-dot-circle-o"></i>
+            </button>
+            <button id="line-tool" class="tool-btn" title="直线工具">
+                <i class="fa fa-minus"></i>
+            </button>
+            <button id="rectangle-tool" class="tool-btn" title="矩形工具">
+                <i class="fa fa-square-o"></i>
+            </button>
+            <button id="circle-tool" class="tool-btn" title="圆形工具">
+                <i class="fa fa-circle-o"></i>
+            </button>
+            <button id="triangle-tool" class="tool-btn" title="三角形工具">
+                <i class="fa fa-caret-up rotate-180"></i>
+            </button>
+            <button id="freehand-tool" class="tool-btn" title="自由绘制">
+                <i class="fa fa-pencil"></i>
+            </button>
+            <button id="text-tool" class="tool-btn" title="文本工具">
+                <i class="fa fa-font"></i>
+            </button>
+            <div class="h-px bg-gray-200 w-6 my-2"></div>
+            <button id="function-tool" class="tool-btn" title="函数图像">
+                <i class="fa fa-calculator"></i>
+            </button>
+            <button id="grid-tool" class="tool-btn" title="网格开关">
+                <i class="fa fa-th"></i>
+            </button>
+        </aside>
+        
+        <!-- 中间画布区域 -->
+        <div class="flex-1 relative overflow-hidden bg-gray-100">
+            <div id="canvas-container" class="absolute inset-0 flex items-center justify-center">
+                <!-- 绘图画布 -->
+                <canvas id="drawing-canvas" class="bg-white shadow-lg cursor-crosshair" width="1200" height="800"></canvas>
+            </div>
+            
+            <!-- 坐标指示器 -->
+            <div id="coordinates" class="absolute bottom-2 left-2 bg-white px-2 py-1 text-xs rounded shadow-md pointer-events-none">
+                (x: 0, y: 0)
+            </div>
+        </div>
+        
+        <!-- 右侧属性面板 -->
+        <aside id="properties-panel" class="bg-white border-l border-gray-200 w-64 flex flex-col hidden lg:flex">
+            <div class="panel-section">
+                <h2 class="font-semibold mb-3">属性设置</h2>
+                
+                <!-- 线条颜色选择 -->
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-600 mb-1">线条颜色</label>
+                    <div class="flex space-x-2">
+                        <button class="w-6 h-6 rounded-full bg-black border-2 border-white shadow-sm color-btn active" data-color="#000000"></button>
+                        <button class="w-6 h-6 rounded-full bg-red-500 border-2 border-white shadow-sm color-btn" data-color="#EF4444"></button>
+                        <button class="w-6 h-6 rounded-full bg-blue-500 border-2 border-white shadow-sm color-btn" data-color="#3B82F6"></button>
+                        <button class="w-6 h-6 rounded-full bg-green-500 border-2 border-white shadow-sm color-btn" data-color="#10B981"></button>
+                        <button class="w-6 h-6 rounded-full bg-yellow-500 border-2 border-white shadow-sm color-btn" data-color="#F59E0B"></button>
+                        <button class="w-6 h-6 rounded-full bg-purple-500 border-2 border-white shadow-sm color-btn" data-color="#8B5CF6"></button>
+                        <input type="color" id="custom-color" class="w-6 h-6 p-0 border-0 rounded-full overflow-hidden" value="#000000">
+                    </div>
+                </div>
+                
+                <!-- 线条宽度 -->
+                <div class="mb-4">
+                    <label for="line-width" class="block text-sm text-gray-600 mb-1">线条宽度</label>
+                    <input type="range" id="line-width" min="1" max="20" value="2" class="control-input">
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>细</span>
+                        <span id="width-value">2px</span>
+                        <span>粗</span>
+                    </div>
+                </div>
+                
+                <!-- 填充选项 -->
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-600 mb-1">填充</label>
+                    <div class="flex items-center space-x-2">
+                        <button id="no-fill" class="px-3 py-1 text-sm bg-gray-100 rounded fill-btn active" data-fill="none">无</button>
+                        <button id="solid-fill" class="px-3 py-1 text-sm bg-gray-100 rounded fill-btn" data-fill="solid">实心</button>
+                    </div>
+                </div>
+                
+                <!-- 画布背景设置 -->
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-600 mb-1">画布背景</label>
+                    <div class="flex space-x-2">
+                        <button class="w-6 h-6 rounded-full bg-white border-2 border-gray-300 shadow-sm bg-btn active" data-bg="white"></button>
+                        <button class="w-6 h-6 rounded-full bg-gray-100 border-2 border-gray-300 shadow-sm bg-btn" data-bg="#F3F4F6"></button>
+                        <button class="w-6 h-6 rounded-full bg-blue-50 border-2 border-gray-300 shadow-sm bg-btn" data-bg="#EFF6FF"></button>
+                        <input type="color" id="custom-bg-color" class="w-6 h-6 p-0 border-0 rounded-full overflow-hidden" value="#FFFFFF">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 函数绘制面板 -->
+            <div class="panel-section">
+                <h2 class="font-semibold mb-3">函数图像</h2>
+                <div class="mb-3">
+                    <label for="function-input" class="block text-sm text-gray-600 mb-1">输入函数 (y = f(x))</label>
+                    <div class="flex">
+                        <input type="text" id="function-input" placeholder="例如: sin(x), x^2 + 3x" class="control-input rounded-r-none" value="sin(x)">
+                        <button id="plot-function" class="bg-primary text-white px-3 rounded-r-md hover:bg-primary/90 transition-colors">
+                            <i class="fa fa-play"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 mb-3">
+                    <div>
+                        <label for="x-min" class="block text-sm text-gray-600 mb-1">X 最小值</label>
+                        <input type="number" id="x-min" value="-10" class="control-input">
+                    </div>
+                    <div>
+                        <label for="x-max" class="block text-sm text-gray-600 mb-1">X 最大值</label>
+                        <input type="number" id="x-max" value="10" class="control-input">
+                    </div>
+                </div>
+                
+                <div class="bg-gray-50 p-2 rounded text-xs text-gray-500 mb-3">
+                    <p class="font-medium text-gray-700 mb-1">支持的函数:</p>
+                    <p>sin(x), cos(x), tan(x), log(x), sqrt(x), x^n</p>
+                </div>
+                
+                <div id="function-list" class="max-h-40 overflow-y-auto text-sm">
+                    <div class="flex items-center justify-between p-2 bg-gray-50 rounded mb-1">
+                        <span>y = sin(x)</span>
+                        <button class="text-gray-400 hover:text-red-500"><i class="fa fa-times"></i></button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 图形信息面板 -->
+            <div class="panel-section flex-1 overflow-y-auto">
+                <h2 class="font-semibold mb-3">图形信息</h2>
+                <div id="shape-info" class="text-sm text-gray-600">
+                    <p>选择一个图形查看其属性</p>
+                </div>
+            </div>
+        </aside>
+    </main>
+    
+    <!-- 移动端底部工具栏 -->
+    <footer class="lg:hidden bg-white border-t border-gray-200 py-2 px-4 flex justify-between items-center z-20">
+        <button id="toggle-tools" class="p-2 text-gray-600 hover:text-primary">
+            <i class="fa fa-th-large"></i>
+        </button>
+        <button id="toggle-properties" class="p-2 text-gray-600 hover:text-primary">
+            <i class="fa fa-sliders"></i>
+        </button>
+        <button id="mobile-undo" class="p-2 text-gray-600 hover:text-primary btn-disabled" disabled>
+            <i class="fa fa-undo"></i>
+        </button>
+        <button id="mobile-redo" class="p-2 text-gray-600 hover:text-primary btn-disabled" disabled>
+            <i class="fa fa-repeat"></i>
+        </button>
+        <button id="mobile-clear" class="p-2 text-gray-600 hover:text-primary">
+            <i class="fa fa-trash-o"></i>
+        </button>
+    </footer>
+    
+    <!-- 移动端工具面板 (默认隐藏) -->
+    <div id="mobile-tools-panel" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 hidden z-30">
+        <div class="grid grid-cols-5 gap-2">
+            <button class="tool-btn mobile-tool" data-tool="select" title="选择工具">
+                <i class="fa fa-mouse-pointer"></i>
+            </button>
+            <button class="tool-btn mobile-tool" data-tool="point" title="点工具">
+                <i class="fa fa-dot-circle-o"></i>
+            </button>
+            <button class="tool-btn mobile-tool" data-tool="line" title="直线工具">
+                <i class="fa fa-minus"></i>
+            </button>
+            <button class="tool-btn mobile-tool" data-tool="rectangle" title="矩形工具">
+                <i class="fa fa-square-o"></i>
+            </button>
+            <button class="tool-btn mobile-tool" data-tool="circle" title="圆形工具">
+                <i class="fa fa-circle-o"></i>
+            </button>
+            <button class="tool-btn mobile-tool" data-tool="triangle" title="三角形工具">
+                <i class="fa fa-caret-up rotate-180"></i>
+            </button>
+            <button class="tool-btn mobile-tool" data-tool="freehand" title="自由绘制">
+                <i class="fa fa-pencil"></i>
+            </button>
+            <button class="tool-btn mobile-tool" data-tool="text" title="文本工具">
+                <i class="fa fa-font"></i>
+            </button>
+            <button class="tool-btn mobile-tool" data-tool="function" title="函数图像">
+                <i class="fa fa-calculator"></i>
+            </button>
+            <button class="tool-btn mobile-tool" data-tool="grid" title="网格开关">
+                <i class="fa fa-th"></i>
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        // 等待DOM加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取Canvas元素和上下文
+            const canvas = document.getElementById('drawing-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 获取按钮元素
+            const undoBtn = document.getElementById('undo-btn');
+            const redoBtn = document.getElementById('redo-btn');
+            const mobileUndoBtn = document.getElementById('mobile-undo');
+            const mobileRedoBtn = document.getElementById('mobile-redo');
+            const mobileClearBtn = document.getElementById('mobile-clear');
+            const toggleToolsBtn = document.getElementById('toggle-tools');
+            const togglePropertiesBtn = document.getElementById('toggle-properties');
+            const mobileToolsPanel = document.getElementById('mobile-tools-panel');
+            const propertiesPanel = document.getElementById('properties-panel');
+            
+            // 应用状态
+            const state = {
+                currentTool: 'select',
+                isDrawing: false,
+                startX: 0,
+                startY: 0,
+                currentShape: null,
+                shapes: [],
+                selectedShape: null,
+                isDragging: false,
+                dragOffsetX: 0,
+                dragOffsetY: 0,
+                showGrid: true,
+                lineColor: '#000000',
+                lineWidth: 2,
+                fillStyle: 'none',
+                canvasBgColor: 'white', // 新增：画布背景颜色
+                history: [],
+                historyIndex: -1,
+                functions: [
+                    { expression: 'sin(x)', color: '#3B82F6' }
+                ]
+            };
+            
+            // 更新撤销/重做按钮状态
+            function updateHistoryButtons() {
+                const canUndo = state.historyIndex > 0;
+                const canRedo = state.historyIndex < state.history.length - 1;
+                
+                // 更新桌面端按钮
+                undoBtn.disabled = !canUndo;
+                redoBtn.disabled = !canRedo;
+                
+                if (canUndo) {
+                    undoBtn.classList.remove('btn-disabled');
+                } else {
+                    undoBtn.classList.add('btn-disabled');
+                }
+                
+                if (canRedo) {
+                    redoBtn.classList.remove('btn-disabled');
+                } else {
+                    redoBtn.classList.add('btn-disabled');
+                }
+                
+                // 更新移动端按钮
+                mobileUndoBtn.disabled = !canUndo;
+                if (canUndo) {
+                    mobileUndoBtn.classList.remove('btn-disabled');
+                } else {
+                    mobileUndoBtn.classList.add('btn-disabled');
+                }
+                
+                mobileRedoBtn.disabled = !canRedo;
+                if (canRedo) {
+                    mobileRedoBtn.classList.remove('btn-disabled');
+                } else {
+                    mobileRedoBtn.classList.add('btn-disabled');
+                }
+            }
+            
+            // 初始化
+            function init() {
+                // 保存初始状态到历史记录
+                saveState();
+                
+                // 绘制初始画布
+                redrawCanvas();
+                
+                // 添加事件监听器
+                setupEventListeners();
+                
+                // 更新按钮状态
+                updateHistoryButtons();
+            }
+            
+            // 设置事件监听器
+            function setupEventListeners() {
+                // Canvas事件
+                canvas.addEventListener('mousedown', handleMouseDown);
+                canvas.addEventListener('mousemove', handleMouseMove);
+                canvas.addEventListener('mouseup', handleMouseUp);
+                canvas.addEventListener('mouseout', handleMouseUp);
+                
+                // 桌面端工具选择事件
+                document.querySelectorAll('.tool-btn:not(.mobile-tool)').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        selectTool(this.id.replace('-tool', ''));
+                    });
+                });
+                
+                // 移动端工具选择事件
+                document.querySelectorAll('.mobile-tool').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const tool = this.getAttribute('data-tool');
+                        selectTool(tool);
+                        // 选择工具后隐藏移动端工具面板
+                        mobileToolsPanel.classList.add('hidden');
+                    });
+                });
+                
+                // 颜色选择事件
+                document.querySelectorAll('.color-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        state.lineColor = this.getAttribute('data-color');
+                        document.getElementById('custom-color').value = state.lineColor;
+                    });
+                });
+                
+                // 自定义颜色选择
+                document.getElementById('custom-color').addEventListener('input', function() {
+                    state.lineColor = this.value;
+                    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                });
+                
+                // 线条宽度调整
+                const lineWidthInput = document.getElementById('line-width');
+                const widthValue = document.getElementById('width-value');
+                
+                lineWidthInput.addEventListener('input', function() {
+                    state.lineWidth = parseInt(this.value);
+                    widthValue.textContent = `${state.lineWidth}px`;
+                });
+                
+                // 填充选项
+                document.querySelectorAll('.fill-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.querySelectorAll('.fill-btn').forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        state.fillStyle = this.getAttribute('data-fill');
+                    });
+                });
+                
+                // 画布背景颜色选择
+                document.querySelectorAll('.bg-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        state.canvasBgColor = this.getAttribute('data-bg');
+                        canvas.style.backgroundColor = state.canvasBgColor;
+                        document.getElementById('custom-bg-color').value = state.canvasBgColor.startsWith('#') ? 
+                                                                          state.canvasBgColor : '#FFFFFF';
+                        redrawCanvas();
+                        saveState();
+                        updateHistoryButtons();
+                    });
+                });
+                
+                // 自定义背景颜色选择
+                document.getElementById('custom-bg-color').addEventListener('input', function() {
+                    state.canvasBgColor = this.value;
+                    canvas.style.backgroundColor = state.canvasBgColor;
+                    document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
+                    redrawCanvas();
+                    saveState();
+                    updateHistoryButtons();
+                });
+                
+                // 函数绘制
+                document.getElementById('plot-function').addEventListener('click', plotFunction);
+                
+                // 清除画布
+                document.getElementById('clear-btn').addEventListener('click', clearCanvas);
+                mobileClearBtn.addEventListener('click', clearCanvas);
+                
+                // 撤销和重做
+                undoBtn.addEventListener('click', undo);
+                redoBtn.addEventListener('click', redo);
+                mobileUndoBtn.addEventListener('click', undo);
+                mobileRedoBtn.addEventListener('click', redo);
+                
+                // 新建画布
+                document.getElementById('new-btn').addEventListener('click', function() {
+                    if (confirm('确定要新建一个画布吗？当前内容将会丢失。')) {
+                        state.shapes = [];
+                        state.functions = [];
+                        redrawCanvas();
+                        updateFunctionList();
+                        saveState();
+                        updateHistoryButtons();
+                    }
+                });
+                
+                // 保存画布
+                document.getElementById('save-btn').addEventListener('click', saveCanvas);
+                
+                // 移动端面板切换
+                toggleToolsBtn.addEventListener('click', function() {
+                    mobileToolsPanel.classList.toggle('hidden');
+                    // 如果属性面板是显示的，先隐藏它
+                    if (!propertiesPanel.classList.contains('hidden') && window.innerWidth < 1024) {
+                        propertiesPanel.classList.add('hidden');
+                        propertiesPanel.classList.remove('absolute', 'z-20', 'inset-0', 'bg-white');
+                    }
+                });
+                
+                togglePropertiesBtn.addEventListener('click', function() {
+                    propertiesPanel.classList.toggle('hidden');
+                    if (window.innerWidth < 1024) {
+                        propertiesPanel.classList.toggle('absolute');
+                        propertiesPanel.classList.toggle('z-20');
+                        propertiesPanel.classList.toggle('inset-0');
+                        propertiesPanel.classList.toggle('bg-white');
+                    }
+                    // 如果工具面板是显示的，先隐藏它
+                    if (!mobileToolsPanel.classList.contains('hidden')) {
+                        mobileToolsPanel.classList.add('hidden');
+                    }
+                });
+                
+                // 网格开关
+                document.getElementById('grid-tool').addEventListener('click', toggleGrid);
+                
+                // 点击画布外关闭移动面板
+                document.addEventListener('click', function(e) {
+                    if (window.innerWidth < 1024) {
+                        // 检查点击是否在工具按钮、工具面板或属性面板外
+                        const isClickOnTools = toggleToolsBtn.contains(e.target) || 
+                                              mobileToolsPanel.contains(e.target);
+                        const isClickOnProperties = togglePropertiesBtn.contains(e.target) ||
+                                                  propertiesPanel.contains(e.target);
+                        
+                        if (!isClickOnTools && !mobileToolsPanel.classList.contains('hidden')) {
+                            mobileToolsPanel.classList.add('hidden');
+                        }
+                        
+                        if (!isClickOnProperties && 
+                            !propertiesPanel.classList.contains('hidden') &&
+                            propertiesPanel.classList.contains('absolute')) {
+                            propertiesPanel.classList.add('hidden');
+                            propertiesPanel.classList.remove('absolute', 'z-20', 'inset-0', 'bg-white');
+                        }
+                    }
+                });
+                
+                // 窗口大小变化时处理
+                window.addEventListener('resize', function() {
+                    if (window.innerWidth >= 1024) {
+                        // 在大屏幕上始终显示属性面板
+                        propertiesPanel.classList.remove('hidden', 'absolute', 'z-20', 'inset-0', 'bg-white');
+                        // 隐藏移动端工具面板
+                        mobileToolsPanel.classList.add('hidden');
+                    } else {
+                        // 在小屏幕上默认隐藏属性面板
+                        propertiesPanel.classList.add('hidden');
+                    }
+                });
+            }
+            
+            // 选择工具
+            function selectTool(toolName) {
+                // 移除所有工具的active类
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                // 为对应的桌面端工具添加active类
+                const desktopTool = document.getElementById(`${toolName}-tool`);
+                if (desktopTool) {
+                    desktopTool.classList.add('active');
+                }
+                // 为对应的移动端工具添加active类
+                document.querySelectorAll(`.mobile-tool[data-tool="${toolName}"]`).forEach(b => {
+                    b.classList.add('active');
+                });
+                // 设置当前工具
+                state.currentTool = toolName;
+            }
+            
+            // 切换网格显示
+            function toggleGrid() {
+                state.showGrid = !state.showGrid;
+                redrawCanvas();
+                saveState();
+                updateHistoryButtons();
+            }
+            
+            // 处理鼠标按下事件
+            function handleMouseDown(e) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                state.startX = x;
+                state.startY = y;
+                state.isDrawing = true;
+                
+                // 根据当前工具处理
+                switch(state.currentTool) {
+                    case 'select':
+                        // 检查是否点击了某个图形
+                        const shape = findShapeAt(x, y);
+                        if (shape) {
+                            state.selectedShape = shape;
+                            state.isDragging = true;
+                            state.dragOffsetX = x - shape.x;
+                            state.dragOffsetY = y - shape.y;
+                            updateShapeInfo(shape);
+                        } else {
+                            state.selectedShape = null;
+                            document.getElementById('shape-info').textContent = '选择一个图形查看其属性';
+                        }
+                        redrawCanvas();
+                        break;
+                        
+                    case 'point':
+                        // 创建点
+                        state.shapes.push({
+                            type: 'point',
+                            x: x,
+                            y: y,
+                            color: state.lineColor,
+                            size: state.lineWidth * 2
+                        });
+                        state.isDrawing = false;
+                        redrawCanvas();
+                        saveState();
+                        updateHistoryButtons();
+                        break;
+                        
+                    case 'line':
+                        // 开始绘制直线
+                        state.currentShape = {
+                            type: 'line',
+                            x1: x,
+                            y1: y,
+                            x2: x,
+                            y2: y,
+                            color: state.lineColor,
+                            width: state.lineWidth
+                        };
+                        break;
+                        
+                    case 'rectangle':
+                        // 开始绘制矩形
+                        state.currentShape = {
+                            type: 'rectangle',
+                            x: x,
+                            y: y,
+                            width: 0,
+                            height: 0,
+                            color: state.lineColor,
+                            lineWidth: state.lineWidth,
+                            fill: state.fillStyle === 'solid' ? state.lineColor : 'none'
+                        };
+                        break;
+                        
+                    case 'circle':
+                        // 开始绘制圆形
+                        state.currentShape = {
+                            type: 'circle',
+                            x: x,
+                            y: y,
+                            radius: 0,
+                            color: state.lineColor,
+                            lineWidth: state.lineWidth,
+                            fill: state.fillStyle === 'solid' ? state.lineColor : 'none'
+                        };
+                        break;
+                        
+                    case 'triangle':
+                        // 开始绘制三角形
+                        state.currentShape = {
+                            type: 'triangle',
+                            points: [{x, y}, {x, y}, {x, y}],
+                            pointCount: 1,
+                            color: state.lineColor,
+                            lineWidth: state.lineWidth,
+                            fill: state.fillStyle === 'solid' ? state.lineColor : 'none'
+                        };
+                        break;
+                        
+                    case 'freehand':
+                        // 开始自由绘制
+                        state.currentShape = {
+                            type: 'freehand',
+                            points: [{x, y}],
+                            color: state.lineColor,
+                            width: state.lineWidth
+                        };
+                        break;
+                        
+                    case 'text':
+                        // 添加文本
+                        const text = prompt('请输入文本:');
+                        if (text) {
+                            state.shapes.push({
+                                type: 'text',
+                                x: x,
+                                y: y,
+                                content: text,
+                                color: state.lineColor,
+                                fontSize: 16
+                            });
+                            redrawCanvas();
+                            saveState();
+                            updateHistoryButtons();
+                        }
+                        state.isDrawing = false;
+                        break;
+                        
+                    case 'function':
+                        // 显示函数输入面板
+                        if (window.innerWidth < 1024) {
+                            propertiesPanel.classList.remove('hidden');
+                            propertiesPanel.classList.add('absolute', 'z-20', 'inset-0', 'bg-white');
+                        }
+                        // 聚焦到函数输入框
+                        document.getElementById('function-input').focus();
+                        state.isDrawing = false;
+                        break;
+                        
+                    case 'grid':
+                        // 切换网格
+                        toggleGrid();
+                        state.isDrawing = false;
+                        break;
+                }
+            }
+            
+            // 处理鼠标移动事件
+            function handleMouseMove(e) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                // 更新坐标指示器
+                document.getElementById('coordinates').textContent = `(x: ${Math.round(x)}, y: ${Math.round(y)})`;
+                
+                if (!state.isDrawing) {
+                    // 如果正在拖拽选中的图形
+                    if (state.isDragging && state.selectedShape) {
+                        state.selectedShape.x = x - state.dragOffsetX;
+                        state.selectedShape.y = y - state.dragOffsetY;
+                        redrawCanvas();
+                        updateShapeInfo(state.selectedShape);
+                    }
+                    return;
+                }
+                
+                // 根据当前工具更新图形
+                switch(state.currentTool) {
+                    case 'line':
+                        if (state.currentShape) {
+                            state.currentShape.x2 = x;
+                            state.currentShape.y2 = y;
+                            redrawCanvas();
+                        }
+                        break;
+                        
+                    case 'rectangle':
+                        if (state.currentShape) {
+                            state.currentShape.width = x - state.startX;
+                            state.currentShape.height = y - state.startY;
+                            redrawCanvas();
+                        }
+                        break;
+                        
+                    case 'circle':
+                        if (state.currentShape) {
+                            const radius = Math.sqrt(Math.pow(x - state.startX, 2) + Math.pow(y - state.startY, 2));
+                            state.currentShape.radius = radius;
+                            redrawCanvas();
+                        }
+                        break;
+                        
+                    case 'triangle':
+                        if (state.currentShape && state.currentShape.pointCount < 3) {
+                            state.currentShape.points[state.currentShape.pointCount] = {x, y};
+                            redrawCanvas();
+                        }
+                        break;
+                        
+                    case 'freehand':
+                        if (state.currentShape) {
+                            state.currentShape.points.push({x, y});
+                            redrawCanvas();
+                        }
+                        break;
+                }
+            }
+            
+            // 处理鼠标释放事件
+            function handleMouseUp() {
+                if (!state.isDrawing) {
+                    // 结束拖拽
+                    if (state.isDragging) {
+                        state.isDragging = false;
+                        saveState();
+                        updateHistoryButtons();
+                    }
+                    return;
+                }
+                
+                state.isDrawing = false;
+                
+                // 保存当前形状
+                if (state.currentShape) {
+                    // 对于三角形，需要判断是否已完成三个点
+                    if (state.currentTool === 'triangle' && state.currentShape.pointCount < 2) {
+                        state.currentShape.pointCount++;
+                        return;
+                    }
+                    
+                    state.shapes.push(state.currentShape);
+                    state.currentShape = null;
+                    saveState();
+                    updateHistoryButtons();
+                }
+                
+                redrawCanvas();
+            }
+            
+            // 重绘整个画布
+            function redrawCanvas() {
+                // 清除画布并设置背景色
+                ctx.fillStyle = state.canvasBgColor;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // 绘制网格
+                if (state.showGrid) {
+                    drawGrid();
+                }
+                
+                // 绘制所有函数图像
+                drawFunctions();
+                
+                // 绘制所有形状
+                state.shapes.forEach(shape => {
+                    drawShape(shape, shape === state.selectedShape);
+                });
+                
+                // 绘制当前正在绘制的形状
+                if (state.currentShape) {
+                    drawShape(state.currentShape, false);
+                }
+            }
+            
+            // 绘制网格
+            function drawGrid() {
+                const gridSize = 50;
+                // 根据背景色动态调整网格线颜色
+                const isDarkBg = getBrightness(state.canvasBgColor) < 128;
+                ctx.strokeStyle = isDarkBg ? '#444444' : '#EEEEEE';
+                ctx.lineWidth = 1;
+                
+                // 绘制水平线
+                for (let y = 0; y <= canvas.height; y += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvas.width, y);
+                    ctx.stroke();
+                }
+                
+                // 绘制垂直线
+                for (let x = 0; x <= canvas.width; x += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvas.height);
+                    ctx.stroke();
+                }
+                
+                // 绘制坐标轴
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                
+                ctx.strokeStyle = isDarkBg ? '#AAAAAA' : '#333333';
+                ctx.lineWidth = 1.5;
+                
+                // X轴
+                ctx.beginPath();
+                ctx.moveTo(0, centerY);
+                ctx.lineTo(canvas.width, centerY);
+                ctx.stroke();
+                
+                // Y轴
+                ctx.beginPath();
+                ctx.moveTo(centerX, 0);
+                ctx.lineTo(centerX, canvas.height);
+                ctx.stroke();
+                
+                // 绘制原点
+                ctx.fillStyle = isDarkBg ? '#FFFFFF' : '#333333';
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // 计算颜色亮度（用于动态调整网格线颜色）
+            function getBrightness(color) {
+                // 如果是颜色名称，转换为十六进制
+                if (!color.startsWith('#')) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.style.color = color;
+                    document.body.appendChild(tempDiv);
+                    const computedColor = getComputedStyle(tempDiv).color;
+                    document.body.removeChild(tempDiv);
+                    
+                    // 解析rgb(r, g, b)格式
+                    const rgb = computedColor.match(/\d+/g).map(Number);
+                    return (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+                }
+                
+                // 解析十六进制颜色
+                const hex = color.replace('#', '');
+                const r = parseInt(hex.substring(0, 2), 16);
+                const g = parseInt(hex.substring(2, 4), 16);
+                const b = parseInt(hex.substring(4, 6), 16);
+                
+                // 计算亮度 (YIQ公式)
+                return (r * 299 + g * 587 + b * 114) / 1000;
+            }
+            
+            // 绘制函数图像
+            function drawFunctions() {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const scale = 50; // 50像素代表1个单位
+                
+                state.functions.forEach(func => {
+                    const expression = func.expression;
+                    const xMin = parseFloat(document.getElementById('x-min').value) || -10;
+                    const xMax = parseFloat(document.getElementById('x-max').value) || 10;
+                    const step = 0.1;
+                    
+                    ctx.strokeStyle = func.color;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    
+                    let isFirstPoint = true;
+                    
+                    for (let x = xMin; x <= xMax; x += step) {
+                        try {
+                            // 使用math.js计算函数值
+                            const y = math.evaluate(expression, {x: x});
+                            
+                            // 转换为画布坐标
+                            const canvasX = centerX + x * scale;
+                            const canvasY = centerY - y * scale; // Y轴是向下的，所以取反
+                            
+                            if (isFirstPoint) {
+                                ctx.moveTo(canvasX, canvasY);
+                                isFirstPoint = false;
+                            } else {
+                                ctx.lineTo(canvasX, canvasY);
+                            }
+                        } catch (error) {
+                            console.error('函数计算错误:', error);
+                            break;
+                        }
+                    }
+                    
+                    ctx.stroke();
+                });
+            }
+            
+            // 绘制单个形状
+            function drawShape(shape, isSelected) {
+                ctx.save();
+                
+                // 设置基本样式
+                ctx.strokeStyle = shape.color || state.lineColor;
+                ctx.lineWidth = shape.width || shape.lineWidth || state.lineWidth;
+                
+                // 根据形状类型绘制
+                switch(shape.type) {
+                    case 'point':
+                        ctx.fillStyle = shape.color || state.lineColor;
+                        ctx.beginPath();
+                        ctx.arc(shape.x, shape.y, shape.size || 3, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+                        
+                    case 'line':
+                        ctx.beginPath();
+                        ctx.moveTo(shape.x1, shape.y1);
+                        ctx.lineTo(shape.x2, shape.y2);
+                        ctx.stroke();
+                        break;
+                        
+                    case 'rectangle':
+                        // 如果宽高为负，调整坐标
+                        const x = shape.width < 0 ? shape.x + shape.width : shape.x;
+                        const y = shape.height < 0 ? shape.y + shape.height : shape.y;
+                        const width = Math.abs(shape.width);
+                        const height = Math.abs(shape.height);
+                        
+                        ctx.beginPath();
+                        ctx.rect(x, y, width, height);
+                        
+                        // 填充
+                        if (shape.fill && shape.fill !== 'none') {
+                            ctx.fillStyle = shape.fill;
+                            ctx.fill();
+                        }
+                        
+                        ctx.stroke();
+                        break;
+                        
+                    case 'circle':
+                        ctx.beginPath();
+                        ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
+                        
+                        // 填充
+                        if (shape.fill && shape.fill !== 'none') {
+                            ctx.fillStyle = shape.fill;
+                            ctx.fill();
+                        }
+                        
+                        ctx.stroke();
+                        break;
+                        
+                    case 'triangle':
+                        ctx.beginPath();
+                        ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                        ctx.lineTo(shape.points[1].x, shape.points[1].y);
+                        ctx.lineTo(shape.points[2].x, shape.points[2].y);
+                        ctx.closePath();
+                        
+                        // 填充
+                        if (shape.fill && shape.fill !== 'none') {
+                            ctx.fillStyle = shape.fill;
+                            ctx.fill();
+                        }
+                        
+                        ctx.stroke();
+                        break;
+                        
+                    case 'freehand':
+                        if (shape.points.length > 1) {
+                            ctx.beginPath();
+                            ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                            
+                            for (let i = 1; i < shape.points.length; i++) {
+                                ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                            }
+                            
+                            ctx.stroke();
+                        }
+                        break;
+                        
+                    case 'text':
+                        ctx.fillStyle = shape.color || state.lineColor;
+                        ctx.font = `${shape.fontSize || 16}px Arial`;
+                        ctx.fillText(shape.content, shape.x, shape.y);
+                        break;
+                }
+                
+                // 如果是选中的形状，绘制选择框
+                if (isSelected) {
+                    drawSelectionIndicator(shape);
+                }
+                
+                ctx.restore();
+            }
+            
+            // 绘制选择指示器
+            function drawSelectionIndicator(shape) {
+                // 根据背景色动态调整选择框颜色
+                const isDarkBg = getBrightness(state.canvasBgColor) < 128;
+                ctx.strokeStyle = isDarkBg ? '#60A5FA' : '#3B82F6';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 3]);
+                
+                switch(shape.type) {
+                    case 'point':
+                        ctx.beginPath();
+                        ctx.arc(shape.x, shape.y, shape.size + 5 || 8, 0, Math.PI * 2);
+                        ctx.stroke();
+                        break;
+                        
+                    case 'line':
+                        // 绘制端点
+                        ctx.fillStyle = isDarkBg ? '#60A5FA' : '#3B82F6';
+                        ctx.beginPath();
+                        ctx.arc(shape.x1, shape.y1, 4, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        ctx.beginPath();
+                        ctx.arc(shape.x2, shape.y2, 4, 0, Math.PI * 2);
+                        ctx.fill();
+                        break;
+                        
+                    case 'rectangle':
+                        const x = shape.width < 0 ? shape.x + shape.width : shape.x;
+                        const y = shape.height < 0 ? shape.y + shape.height : shape.y;
+                        const width = Math.abs(shape.width);
+                        const height = Math.abs(shape.height);
+                        
+                        ctx.strokeRect(x - 5, y - 5, width + 10, height + 10);
+                        
+                        // 绘制控制点
+                        drawControlPoint(x, y, isDarkBg);
+                        drawControlPoint(x + width, y, isDarkBg);
+                        drawControlPoint(x, y + height, isDarkBg);
+                        drawControlPoint(x + width, y + height, isDarkBg);
+                        break;
+                        
+                    case 'circle':
+                        ctx.beginPath();
+                        ctx.arc(shape.x, shape.y, shape.radius + 5, 0, Math.PI * 2);
+                        ctx.stroke();
+                        
+                        // 绘制中心点和边缘控制点
+                        drawControlPoint(shape.x, shape.y, isDarkBg);
+                        drawControlPoint(shape.x + shape.radius, shape.y, isDarkBg);
+                        break;
+                        
+                    case 'triangle':
+                        ctx.beginPath();
+                        ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                        ctx.lineTo(shape.points[1].x, shape.points[1].y);
+                        ctx.lineTo(shape.points[2].x, shape.points[2].y);
+                        ctx.closePath();
+                        ctx.stroke();
+                        
+                        // 绘制顶点控制点
+                        shape.points.forEach(point => {
+                            drawControlPoint(point.x, point.y, isDarkBg);
+                        });
+                        break;
+                        
+                    case 'text':
+                        const metrics = ctx.measureText(shape.content);
+                        ctx.strokeRect(shape.x - 5, shape.y - shape.fontSize - 5, metrics.width + 10, shape.fontSize + 10);
+                        break;
+                }
+                
+                ctx.setLineDash([]);
+            }
+            
+            // 绘制控制点
+            function drawControlPoint(x, y, isDarkBg) {
+                ctx.fillStyle = isDarkBg ? '#374151' : '#FFFFFF';
+                ctx.strokeStyle = isDarkBg ? '#60A5FA' : '#3B82F6';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+            
+            // 查找指定位置的形状
+            function findShapeAt(x, y) {
+                // 从后往前找，确保顶层的形状先被选中
+                for (let i = state.shapes.length - 1; i >= 0; i--) {
+                    const shape = state.shapes[i];
+                    if (isPointInShape(x, y, shape)) {
+                        return shape;
+                    }
+                }
+                return null;
+            }
+            
+            // 判断点是否在形状内
+            function isPointInShape(x, y, shape) {
+                const tolerance = 5; // 点击容差
+                
+                switch(shape.type) {
+                    case 'point':
+                        const dx = x - shape.x;
+                        const dy = y - shape.y;
+                        return dx * dx + dy * dy <= (shape.size + tolerance) * (shape.size + tolerance);
+                        
+                    case 'line':
+                        // 计算点到直线的距离
+                        const A = y - shape.y1;
+                        const B = shape.x1 - shape.x2;
+                        const C = shape.x2 * shape.y1 - shape.x1 * shape.y2;
+                        const distance = Math.abs(A * x + B * y + C) / Math.sqrt(A * A + B * B);
+                        
+                        // 检查点是否在直线段的范围内
+                        const minX = Math.min(shape.x1, shape.x2);
+                        const maxX = Math.max(shape.x1, shape.x2);
+                        const minY = Math.min(shape.y1, shape.y2);
+                        const maxY = Math.max(shape.y1, shape.y2);
+                        
+                        return distance <= tolerance && x >= minX - tolerance && x <= maxX + tolerance &&
+                               y >= minY - tolerance && y <= maxY + tolerance;
+                        
+                    case 'rectangle':
+                        const rx = shape.width < 0 ? shape.x + shape.width : shape.x;
+                        const ry = shape.height < 0 ? shape.y + shape.height : shape.y;
+                        const rw = Math.abs(shape.width);
+                        const rh = Math.abs(shape.height);
+                        
+                        return x >= rx - tolerance && x <= rx + rw + tolerance &&
+                               y >= ry - tolerance && y <= ry + rh + tolerance;
+                        
+                    case 'circle':
+                        const dx2 = x - shape.x;
+                        const dy2 = y - shape.y;
+                        return dx2 * dx2 + dy2 * dy2 <= (shape.radius + tolerance) * (shape.radius + tolerance);
+                        
+                    case 'triangle':
+                        // 使用 barycentric coordinate 方法判断点是否在三角形内
+                        const v0 = {x: shape.points[2].x - shape.points[0].x, y: shape.points[2].y - shape.points[0].y};
+                        const v1 = {x: shape.points[1].x - shape.points[0].x, y: shape.points[1].y - shape.points[0].y};
+                        const v2 = {x: x - shape.points[0].x, y: y - shape.points[0].y};
+                        
+                        const dot00 = v0.x * v0.x + v0.y * v0.y;
+                        const dot01 = v0.x * v1.x + v0.y * v1.y;
+                        const dot02 = v0.x * v2.x + v0.y * v2.y;
+                        const dot11 = v1.x * v1.x + v1.y * v1.y;
+                        const dot12 = v1.x * v2.x + v1.y * v2.y;
+                        
+                        const invDenom = 1 / (dot00 * dot11 - dot01 * dot01);
+                        const u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+                        const v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+                        
+                        return (u >= -tolerance && v >= -tolerance && (u + v) <= 1 + tolerance);
+                        
+                    case 'text':
+                        // 简单的文本点击检测
+                        const metrics = ctx.measureText(shape.content);
+                        return x >= shape.x - tolerance && x <= shape.x + metrics.width + tolerance &&
+                               y >= shape.y - shape.fontSize - tolerance && y <= shape.y + tolerance;
+                               
+                    case 'freehand':
+                        // 检查点是否靠近任何线段
+                        for (let i = 0; i < shape.points.length - 1; i++) {
+                            const p1 = shape.points[i];
+                            const p2 = shape.points[i+1];
+                            
+                            // 计算点到线段的距离
+                            const A = y - p1.y;
+                            const B = p1.x - p2.x;
+                            const C = p2.x * p1.y - p1.x * p2.y;
+                            const distance = Math.abs(A * x + B * y + C) / Math.sqrt(A * A + B * B);
+                            
+                            if (distance <= tolerance) {
+                                // 检查是否在线段范围内
+                                const minX = Math.min(p1.x, p2.x);
+                                const maxX = Math.max(p1.x, p2.x);
+                                const minY = Math.min(p1.y, p2.y);
+                                const maxY = Math.max(p1.y, p2.y);
+                                
+                                if (x >= minX - tolerance && x <= maxX + tolerance &&
+                                    y >= minY - tolerance && y <= maxY + tolerance) {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                }
+                
+                return false;
+            }
+            
+            // 绘制函数图像
+            function plotFunction() {
+                const expression = document.getElementById('function-input').value.trim();
+                if (!expression) return;
+                
+                // 生成随机颜色
+                const colors = ['#3B82F6', '#10B981', '#EF4444', '#F59E0B', '#8B5CF6', '#EC4899', '#6366F1'];
+                const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                // 添加函数
+                state.functions.push({
+                    expression: expression,
+                    color: randomColor
+                });
+                
+                // 更新函数列表
+                updateFunctionList();
+                
+                // 重绘画布
+                redrawCanvas();
+                saveState();
+                updateHistoryButtons();
+            }
+            
+            // 更新函数列表
+            function updateFunctionList() {
+                const listContainer = document.getElementById('function-list');
+                listContainer.innerHTML = '';
+                
+                state.functions.forEach((func, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'flex items-center justify-between p-2 bg-gray-50 rounded mb-1';
+                    
+                    const text = document.createElement('span');
+                    text.textContent = `y = ${func.expression}`;
+                    text.style.color = func.color;
+                    
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'text-gray-400 hover:text-red-500';
+                    removeBtn.innerHTML = '<i class="fa fa-times"></i>';
+                    removeBtn.addEventListener('click', () => {
+                        state.functions.splice(index, 1);
+                        updateFunctionList();
+                        redrawCanvas();
+                        saveState();
+                        updateHistoryButtons();
+                    });
+                    
+                    item.appendChild(text);
+                    item.appendChild(removeBtn);
+                    listContainer.appendChild(item);
+                });
+            }
+            
+            // 更新形状信息面板
+            function updateShapeInfo(shape) {
+                const infoContainer = document.getElementById('shape-info');
+                let infoHTML = '';
+                
+                infoContainer.innerHTML = `<div class="font-medium mb-2">${getShapeTypeName(shape.type)}</div>`;
+                
+                switch(shape.type) {
+                    case 'point':
+                        infoHTML += `
+                            <div class="mb-1"><span class="text-gray-500">坐标:</span> (${Math.round(shape.x)}, ${Math.round(shape.y)})</div>
+                            <div class="mb-1"><span class="text-gray-500">大小:</span> ${shape.size}px</div>
+                        `;
+                        break;
+                        
+                    case 'line':
+                        const length = Math.sqrt(Math.pow(shape.x2 - shape.x1, 2) + Math.pow(shape.y2 - shape.y1, 2));
+                        infoHTML += `
+                            <div class="mb-1"><span class="text-gray-500">起点:</span> (${Math.round(shape.x1)}, ${Math.round(shape.y1)})</div>
+                            <div class="mb-1"><span class="text-gray-500">终点:</span> (${Math.round(shape.x2)}, ${Math.round(shape.y2)})</div>
+                            <div class="mb-1"><span class="text-gray-500">长度:</span> ${Math.round(length)}px</div>
+                        `;
+                        break;
+                        
+                    case 'rectangle':
+                        const width = Math.abs(shape.width);
+                        const height = Math.abs(shape.height);
+                        const area = width * height;
+                        const perimeter = 2 * (width + height);
+                        
+                        infoHTML += `
+                            <div class="mb-1"><span class="text-gray-500">位置:</span> (${Math.round(shape.x)}, ${Math.round(shape.y)})</div>
+                            <div class="mb-1"><span class="text-gray-500">宽度:</span> ${Math.round(width)}px</div>
+                            <div class="mb-1"><span class="text-gray-500">高度:</span> ${Math.round(height)}px</div>
+                            <div class="mb-1"><span class="text-gray-500">面积:</span> ${Math.round(area)}px²</div>
+                            <div class="mb-1"><span class="text-gray-500">周长:</span> ${Math.round(perimeter)}px</div>
+                        `;
+                        break;
+                        
+                    case 'circle':
+                        const circumference = 2 * Math.PI * shape.radius;
+                        const circleArea = Math.PI * shape.radius * shape.radius;
+                        
+                        infoHTML += `
+                            <div class="mb-1"><span class="text-gray-500">圆心:</span> (${Math.round(shape.x)}, ${Math.round(shape.y)})</div>
+                            <div class="mb-1"><span class="text-gray-500">半径:</span> ${Math.round(shape.radius)}px</div>
+                            <div class="mb-1"><span class="text-gray-500">面积:</span> ${Math.round(circleArea)}px²</div>
+                            <div class="mb-1"><span class="text-gray-500">周长:</span> ${Math.round(circumference)}px</div>
+                        `;
+                        break;
+                        
+                    case 'triangle':
+                        // 计算三边长
+                        const a = Math.sqrt(Math.pow(shape.points[1].x - shape.points[2].x, 2) + Math.pow(shape.points[1].y - shape.points[2].y, 2));
+                        const b = Math.sqrt(Math.pow(shape.points[0].x - shape.points[2].x, 2) + Math.pow(shape.points[0].y - shape.points[2].y, 2));
+                        const c = Math.sqrt(Math.pow(shape.points[0].x - shape.points[1].x, 2) + Math.pow(shape.points[0].y - shape.points[1].y, 2));
+                        
+                        // 计算周长
+                        const triPerimeter = a + b + c;
+                        
+                        // 使用海伦公式计算面积
+                        const s = triPerimeter / 2;
+                        const triArea = Math.sqrt(s * (s - a) * (s - b) * (s - c));
+                        
+                        infoHTML += `
+                            <div class="mb-1"><span class="text-gray-500">顶点1:</span> (${Math.round(shape.points[0].x)}, ${Math.round(shape.points[0].y)})</div>
+                            <div class="mb-1"><span class="text-gray-500">顶点2:</span> (${Math.round(shape.points[1].x)}, ${Math.round(shape.points[1].y)})</div>
+                            <div class="mb-1"><span class="text-gray-500">顶点3:</span> (${Math.round(shape.points[2].x)}, ${Math.round(shape.points[2].y)})</div>
+                            <div class="mb-1"><span class="text-gray-500">边长:</span> ${Math.round(a)}, ${Math.round(b)}, ${Math.round(c)}px</div>
+                            <div class="mb-1"><span class="text-gray-500">周长:</span> ${Math.round(triPerimeter)}px</div>
+                            <div class="mb-1"><span class="text-gray-500">面积:</span> ${Math.round(triArea)}px²</div>
+                        `;
+                        break;
+                        
+                    case 'text':
+                        infoHTML += `
+                            <div class="mb-1"><span class="text-gray-500">内容:</span> ${shape.content}</div>
+                            <div class="mb-1"><span class="text-gray-500">位置:</span> (${Math.round(shape.x)}, ${Math.round(shape.y)})</div>
+                            <div class="mb-1"><span class="text-gray-500">字体大小:</span> ${shape.fontSize}px</div>
+                        `;
+                        break;
+                }
+                
+                // 添加颜色信息和删除按钮
+                infoHTML += `
+                    <div class="mb-1"><span class="text-gray-500">颜色:</span> <span class="inline-block w-3 h-3 rounded-full ml-1" style="background-color: ${shape.color}"></span></div>
+                    <button id="delete-shape" class="mt-2 text-sm text-red-500 hover:text-red-700">
+                        <i class="fa fa-trash-o mr-1"></i> 删除
+                    </button>
+                `;
+                
+                infoContainer.innerHTML += infoHTML;
+                
+                // 添加删除按钮事件
+                document.getElementById('delete-shape').addEventListener('click', function() {
+                    const index = state.shapes.indexOf(shape);
+                    if (index !== -1) {
+                        state.shapes.splice(index, 1);
+                        state.selectedShape = null;
+                        redrawCanvas();
+                        document.getElementById('shape-info').textContent = '选择一个图形查看其属性';
+                        saveState();
+                        updateHistoryButtons();
+                    }
+                });
+            }
+            
+            // 获取形状类型的中文名称
+            function getShapeTypeName(type) {
+                const names = {
+                    'point': '点',
+                    'line': '直线',
+                    'rectangle': '矩形',
+                    'circle': '圆形',
+                    'triangle': '三角形',
+                    'freehand': '自由绘制',
+                    'text': '文本'
+                };
+                return names[type] || type;
+            }
+            
+            // 清除画布
+            function clearCanvas() {
+                if (confirm('确定要清除所有内容吗？')) {
+                    state.shapes = [];
+                    state.functions = [];
+                    state.selectedShape = null;
+                    redrawCanvas();
+                    updateFunctionList();
+                    document.getElementById('shape-info').textContent = '选择一个图形查看其属性';
+                    saveState();
+                    updateHistoryButtons();
+                }
+            }
+            
+            // 保存画布为图片
+            function saveCanvas() {
+                // 创建一个临时链接
+                const link = document.createElement('a');
+                link.download = '数学画板_' + new Date().toLocaleString().replace(/[/: ]/g, '-') + '.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            }
+            
+            // 保存状态到历史记录
+            function saveState() {
+                // 移除当前索引之后的历史记录
+                if (state.historyIndex < state.history.length - 1) {
+                    state.history = state.history.slice(0, state.historyIndex + 1);
+                }
+                
+                // 保存当前状态的深拷贝，包括背景颜色
+                const stateCopy = {
+                    shapes: JSON.parse(JSON.stringify(state.shapes)),
+                    functions: JSON.parse(JSON.stringify(state.functions)),
+                    showGrid: state.showGrid,
+                    canvasBgColor: state.canvasBgColor
+                };
+                
+                // 限制历史记录数量为50条
+                if (state.history.length >= 50) {
+                    state.history.shift(); // 移除最旧的记录
+                } else {
+                    state.historyIndex++;
+                }
+                
+                state.history.push(stateCopy);
+            }
+            
+            // 撤销操作
+            function undo() {
+                if (state.historyIndex > 0) {
+                    state.historyIndex--;
+                    const previousState = state.history[state.historyIndex];
+                    state.shapes = JSON.parse(JSON.stringify(previousState.shapes));
+                    state.functions = JSON.parse(JSON.stringify(previousState.functions));
+                    state.showGrid = previousState.showGrid;
+                    state.canvasBgColor = previousState.canvasBgColor;
+                    canvas.style.backgroundColor = state.canvasBgColor;
+                    state.selectedShape = null;
+                    redrawCanvas();
+                    updateFunctionList();
+                    document.getElementById('shape-info').textContent = '选择一个图形查看其属性';
+                    updateHistoryButtons();
+                }
+            }
+            
+            // 重做操作
+            function redo() {
+                if (state.historyIndex < state.history.length - 1) {
+                    state.historyIndex++;
+                    const nextState = state.history[state.historyIndex];
+                    state.shapes = JSON.parse(JSON.stringify(nextState.shapes));
+                    state.functions = JSON.parse(JSON.stringify(nextState.functions));
+                    state.showGrid = nextState.showGrid;
+                    state.canvasBgColor = nextState.canvasBgColor;
+                    canvas.style.backgroundColor = state.canvasBgColor;
+                    state.selectedShape = null;
+                    redrawCanvas();
+                    updateFunctionList();
+                    document.getElementById('shape-info').textContent = '选择一个图形查看其属性';
+                    updateHistoryButtons();
+                }
+            }
+            
+            // 初始化应用
+            init();
+        });
+    </script>
+</body>
+</html>
